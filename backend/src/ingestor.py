@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 
 import chromadb
@@ -64,6 +65,39 @@ class UnitIngestor:
     # ------------------------------------------------------------------
     # Ingestion
     # ------------------------------------------------------------------
+
+    def ingest_pdf(self, pdf_path: Path) -> int:
+        """
+        Parse a QUT MIT course structure PDF and upsert all units found.
+
+        The PDF has two zones:
+        - Pages 1-6: course structure tables (code + title only, used to
+          associate units with majors).
+        - Pages 7+: unit detail blocks (code, title, prerequisites,
+          credit points, description content).
+
+        Returns the number of units upserted.
+        """
+        try:
+            from pypdf import PdfReader  # lazy import — not required at startup
+        except ImportError as exc:
+            raise RuntimeError("pypdf is required for PDF ingestion. Install it with: pip install pypdf") from exc
+
+        reader = PdfReader(str(pdf_path))
+        full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+        units = _parse_pdf_units(full_text)
+        count = 0
+        for unit_data in units:
+            try:
+                self.upsert_unit(unit_data)
+                count += 1
+                logger.debug("Ingested PDF unit %s", unit_data["unit_code"])
+            except Exception as exc:
+                logger.warning("Skipping PDF unit %s: %s", unit_data.get("unit_code", "?"), exc)
+
+        logger.info("Ingested %d unit(s) from PDF %s.", count, pdf_path.name)
+        return count
 
     def ingest_json_files(self, directory: Path) -> int:
         """
@@ -180,6 +214,145 @@ def _coerce_list(value: object) -> list[str]:
     if isinstance(value, str) and value.strip():
         return [value.strip()]
     return []
+
+
+# Labels that separate metadata fields in the detail block
+_META_LABELS = re.compile(
+    r'^(Pre-requisites|Anti-requisites|Equivalents|Credit Points)\s*',
+    re.IGNORECASE,
+)
+
+_PAGE_NOISE = re.compile(
+    r'^(Master of Information Technology|View unit details online)',
+    re.IGNORECASE,
+)
+
+
+def _parse_pdf_units(text: str) -> list[dict]:
+    """
+    Extract unit detail records from QUT MIT course structure PDF text.
+
+    Strategy
+    --------
+    Unit detail blocks live on pages 7+ and always end with
+    "View unit timetable".  We split the full text on that sentinel,
+    then parse each chunk backwards to find the unit code header.
+    This avoids picking up the course-structure table entries
+    on pages 1-6 (which never have the sentinel).
+    """
+    # Each real unit detail block ends with this exact line
+    raw_blocks = re.split(r'View unit timetable', text)
+
+    units: dict[str, dict] = {}
+
+    for block_num, raw in enumerate(raw_blocks):
+        lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+        if not lines:
+            continue
+
+        # Locate the unit code header line.
+        # blocks[1..N]: header is at the top — scan forwards.
+        # blocks[0]: contains all course-structure table pages before the
+        #            first unit detail block; the real header is near the
+        #            bottom — scan backwards.
+        header_idx = None
+        if block_num == 0:
+            # Backward scan: find the LAST unit-code line followed by a meta
+            # label within 8 lines (distinguishes detail header from table ref)
+            for i in range(len(lines) - 1, -1, -1):
+                if not re.match(r'^([A-Z]{2,3}[0-9]{3})\s+\S', lines[i]):
+                    continue
+                lookahead = lines[i + 1: i + 9]
+                if any(_META_LABELS.match(ln) for ln in lookahead):
+                    header_idx = i
+                    break
+        else:
+            # Forward scan: the first unit-code line is the header
+            for i, line in enumerate(lines):
+                if re.match(r'^([A-Z]{2,3}[0-9]{3})\s+\S', line):
+                    header_idx = i
+                    break
+
+        if header_idx is None:
+            continue
+
+        # --- Parse title (may wrap to next line) ---
+        m = re.match(r'^([A-Z]{2,3}[0-9]{3})\s+(.*)', lines[header_idx])
+        if not m:
+            continue
+        unit_code = m.group(1)
+        title_parts = [m.group(2).strip()]
+        idx = header_idx + 1
+        while idx < len(lines):
+            nxt = lines[idx]
+            if _META_LABELS.match(nxt) or _PAGE_NOISE.match(nxt) or re.match(r'^[A-Z]{2,3}[0-9]{3}', nxt):
+                break
+            title_parts.append(nxt)
+            idx += 1
+        title = " ".join(filter(None, title_parts)).strip()
+
+        # --- Parse metadata + content after title ---
+        pre_req = ""
+        credit_points = ""
+        content_parts: list[str] = []
+
+        while idx < len(lines):
+            line = lines[idx]
+            idx += 1
+            if _PAGE_NOISE.match(line):
+                continue
+            lm = _META_LABELS.match(line)
+            if lm:
+                label = lm.group(1).lower().replace("-", "_").replace(" ", "_")
+                inline_val = line[lm.end():].strip()
+
+                if "credit" in label:
+                    # Credit Points always has a short inline numeric value.
+                    # Everything after this line is content — stop meta parsing.
+                    credit_points = inline_val
+                    # Remaining lines are content
+                    while idx < len(lines):
+                        ln = lines[idx]
+                        idx += 1
+                        if _PAGE_NOISE.match(ln):
+                            continue
+                        content_parts.append(ln)
+                    break
+                else:
+                    # Multi-line value (Pre-requisites, Equivalents, Anti-requisites).
+                    # Do NOT break on unit codes — pre-req text is full of them
+                    # (e.g. "IFN584 or ((CAB201 or ITD121)...").
+                    value_parts = [inline_val]
+                    while idx < len(lines):
+                        nxt = lines[idx]
+                        if _META_LABELS.match(nxt):
+                            break
+                        value_parts.append(nxt)
+                        idx += 1
+                    value = " ".join(value_parts).strip()
+                    if "pre_req" in label:
+                        pre_req = value
+            else:
+                content_parts.append(line)
+
+        content = " ".join(content_parts).strip()
+
+        # Only keep records that have real content (skip degenerate blocks)
+        if not content:
+            continue
+
+        # Keep whichever parse has more content for the same code
+        if unit_code not in units or len(content) > len(units[unit_code].get("content", "")):
+            units[unit_code] = {
+                "unit_code": unit_code,
+                "title": title,
+                "pre_requisite": pre_req,
+                "credit_points": credit_points,
+                "content": content,
+                "learning_outcomes": [],
+            }
+
+    return list(units.values())
 
 
 def _meta_to_dict(meta: dict) -> dict:

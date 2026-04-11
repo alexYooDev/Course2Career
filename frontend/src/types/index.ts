@@ -54,6 +54,7 @@ export interface RecommendationRequest {
   completed_units: string[];
   program: 'Bachelor' | 'Master';
   year_of_study: number;
+  major: string;
   top_k: number;
 }
 
@@ -66,10 +67,20 @@ export interface RecommendationResult {
   is_completed: boolean;
 }
 
+export interface StudyResource {
+  type: 'course' | 'youtube' | 'podcast' | 'community' | 'event';
+  title: string;
+  provider: string;
+  description: string;
+  url: string;
+}
+
 export interface RecommendationResponse {
   job_title: string;
   recommendations: RecommendationResult[];
   gap_analysis: string;
+  next_semester_plan: string;
+  study_resources: StudyResource[];
   total_units_analyzed: number;
 }
 

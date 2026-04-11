@@ -4,7 +4,14 @@
  * Fetches the full unit catalogue from ChromaDB (via GET /api/units) and
  * renders it as a responsive grid of UnitCards.
  *
- * Handles three states:
+ * Completed-unit state can be either:
+ *   • Controlled  — parent passes `completedUnits` + `onToggle` props.
+ *                   Used by App.tsx so the same completed set is shared
+ *                   across the recommendations panel and this catalogue.
+ *   • Uncontrolled — props omitted → component manages its own local state.
+ *                   Useful when UnitList is rendered standalone.
+ *
+ * Handles three async states:
  *   loading  — spinner while the backend responds
  *   error    — actionable message if the backend is unreachable
  *   empty    — guidance when ChromaDB has no units yet
@@ -15,17 +22,34 @@ import { useUnits } from '../hooks/useUnits'
 import { unitApi } from '../services/api'
 import UnitCard from './UnitCard'
 
-export default function UnitList() {
+interface Props {
+  /** Controlled: set of completed unit codes owned by the parent. */
+  completedUnits?: Set<string>
+  /** Controlled: toggle handler owned by the parent. */
+  onToggle?: (code: string) => void
+}
+
+export default function UnitList({ completedUnits: externalCompleted, onToggle: externalToggle }: Props) {
   const { units, loading, error, refetch } = useUnits()
-  const [completedUnits, setCompletedUnits] = useState<Set<string>>(new Set())
+
+  // ── Uncontrolled fallback state ─────────────────────────────────────────
+  const [internalCompleted, setInternalCompleted] = useState<Set<string>>(new Set())
   const [ingesting, setIngesting] = useState(false)
 
+  // Resolve which completed set + toggle to use
+  const isControlled = externalCompleted !== undefined && externalToggle !== undefined
+  const completedUnits = isControlled ? externalCompleted : internalCompleted
+
   function toggleCompleted(code: string) {
-    setCompletedUnits(prev => {
-      const next = new Set(prev)
-      next.has(code) ? next.delete(code) : next.add(code)
-      return next
-    })
+    if (isControlled) {
+      externalToggle!(code)
+    } else {
+      setInternalCompleted(prev => {
+        const next = new Set(prev)
+        next.has(code) ? next.delete(code) : next.add(code)
+        return next
+      })
+    }
   }
 
   async function handleIngest() {
@@ -41,7 +65,7 @@ export default function UnitList() {
     }
   }
 
-  // ── Loading ──────────────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 gap-3 text-gray-500">
@@ -51,7 +75,7 @@ export default function UnitList() {
     )
   }
 
-  // ── Error ─────────────────────────────────────────────────────────
+  // ── Error ────────────────────────────────────────────────────────────────
   if (error) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 space-y-2">
@@ -73,7 +97,7 @@ export default function UnitList() {
     )
   }
 
-  // ── Empty ─────────────────────────────────────────────────────────
+  // ── Empty ────────────────────────────────────────────────────────────────
   if (units.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-10 text-center space-y-3">
@@ -93,7 +117,7 @@ export default function UnitList() {
     )
   }
 
-  // ── Units grid ────────────────────────────────────────────────────
+  // ── Units grid ───────────────────────────────────────────────────────────
   const completedCount = [...completedUnits].filter(c =>
     units.some(u => u.unit_code === c)
   ).length

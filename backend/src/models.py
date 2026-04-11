@@ -57,8 +57,9 @@ class JobSearchParams(BaseModel):
 class RecommendationRequest(BaseModel):
     job_description: str
     completed_units: list[str] = []
-    program: str = "Bachelor"       # "Bachelor" | "Master"
-    year_of_study: int = Field(default=1, ge=1, le=5)
+    program: str = "Master"         # "Bachelor" | "Master"
+    year_of_study: int = Field(default=1, ge=1, le=3)  # MIT=2yrs, Bachelor=3yrs
+    major: str = ""                 # e.g. "Computer Science", "Data Science"
     top_k: int = Field(default=3, ge=1, le=10)
 
 
@@ -71,8 +72,18 @@ class RecommendationResultModel(BaseModel):
     is_completed: bool = False
 
 
+class StudyResource(BaseModel):
+    type: str          # "course" | "youtube" | "podcast" | "community" | "event"
+    title: str
+    provider: str      # platform or creator name
+    description: str   # why it helps fill the gap
+    url: str = ""      # direct link (best-effort from LLM)
+
+
 class RecommendationResponse(BaseModel):
     job_title: str
     recommendations: list[RecommendationResultModel]
     gap_analysis: str
+    next_semester_plan: str = ""
+    study_resources: list[StudyResource] = []
     total_units_analyzed: int

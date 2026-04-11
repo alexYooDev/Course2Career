@@ -14,9 +14,11 @@ Two-stage pipeline
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import os
 from collections import Counter
+from urllib.parse import quote_plus
 
 from openai import OpenAI
 
@@ -25,6 +27,7 @@ from backend.src.models import (
     RecommendationRequest,
     RecommendationResponse,
     RecommendationResultModel,
+    StudyResource,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,17 +120,22 @@ def generate_recommendations(
             )
         )
 
-    # --- 3. OpenAI gap analysis ---
-    gap_analysis = _openai_gap_analysis(
+    # --- 3. OpenAI analysis (gap + next-semester plan + resources) ---
+    llm_result = _openai_analysis(
         job_description=request.job_description,
         recommendations=results,
         completed_units=request.completed_units,
+        program=request.program,
+        major=request.major,
+        year_of_study=request.year_of_study,
     )
 
     return RecommendationResponse(
-        job_title="",          # caller can fill from job search result
+        job_title="",
         recommendations=results,
-        gap_analysis=gap_analysis,
+        gap_analysis=llm_result["gap_analysis"],
+        next_semester_plan=llm_result["next_semester_plan"],
+        study_resources=llm_result["study_resources"],
         total_units_analyzed=ingestor.count,
     )
 
@@ -136,71 +144,147 @@ def generate_recommendations(
 # OpenAI integration
 # ---------------------------------------------------------------------------
 
-def _openai_gap_analysis(
-    job_description: str,
-    recommendations: list[RecommendationResultModel],
-    completed_units: list[str],
-) -> str:
-    """
-    Use GPT-4o-mini to produce a 2-3 sentence gap analysis.
+_LLM_PROMPT = """\
+You are an academic advisor for QUT {program} of IT students.
 
-    Falls back to a plain-text summary if the API key is absent or the call
-    fails — so the endpoint always returns a usable response.
-    """
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        logger.warning("OPENAI_API_KEY not set — skipping LLM gap analysis.")
-        return _fallback_gap(recommendations, completed_units)
-
-    units_summary = "\n".join(
-        f"  • [{r.unit_code}] {r.title} — {r.score * 100:.0f}% match"
-        for r in recommendations
-    )
-    completed_str = ", ".join(completed_units) if completed_units else "none"
-
-    prompt = f"""You are an academic advisor for QUT IT students.
+Student Profile: {program} — Year {year_of_study}{major_str}
 
 Job Description (excerpt):
-{job_description[:800]}
+{job_description}
 
 Top Recommended Units:
 {units_summary}
 
 Units Already Completed: {completed_str}
 
-Write a concise gap analysis (2-3 sentences) that:
-1. Identifies which skills the recommended units address.
-2. Highlights any skill gaps NOT covered by available units.
-3. Gives one actionable next step.
+Respond with a JSON object (no markdown fences) with exactly these keys:
 
-Be encouraging, specific, and avoid generic statements."""
+"gap_analysis"        — 2-3 sentences: which skills the recommended units cover, \
+and which skill gaps remain uncovered by the curriculum. \
+Bold key skills and technologies using **keyword** markdown.
+
+"next_semester_plan"  — 2-3 sentences: one concrete, actionable enrolment plan for the \
+next semester. Name specific unit codes and explain the sequencing rationale. \
+Bold unit codes (e.g. **IFN635**) and key action terms using **keyword** markdown.
+
+"study_resources"     — array of 4-5 resources for critical gaps that the curriculum \
+cannot fully fill. Each item must have:
+  type        : one of "course", "youtube", "podcast", "community", "event"
+  title       : name of the specific resource or channel
+  provider    : platform or creator (e.g. "Coursera", "YouTube", "Spotify")
+  description : one sentence on how it fills the identified gap
+  url         : the direct URL to the resource (e.g. YouTube channel URL, \
+Coursera course page, subreddit, podcast page). Use the real known URL. \
+If unsure of the exact page, use the platform homepage (e.g. "https://www.coursera.org").
+
+Use only real, well-known resources. Be specific and encouraging.\
+"""
+
+
+def _build_resource(r: dict) -> StudyResource:
+    """Normalise a raw LLM resource dict into a StudyResource.
+
+    YouTube URLs are always constructed as YouTube search queries so they
+    never rely on potentially hallucinated channel slugs.
+    """
+    rtype = r.get("type", "course")
+    title = r.get("title", "")
+    url = r.get("url", "")
+
+    if rtype == "youtube":
+        url = f"https://www.youtube.com/results?search_query={quote_plus(title)}"
+    elif rtype == "podcast":
+        # Use Spotify podcast search — always valid, avoids hallucinated episode URLs
+        url = f"https://open.spotify.com/search/{quote_plus(title)}/podcasts"
+
+    return StudyResource(
+        type=rtype,
+        title=title,
+        provider=r.get("provider", ""),
+        description=r.get("description", ""),
+        url=url,
+    )
+
+
+def _openai_analysis(
+    job_description: str,
+    recommendations: list[RecommendationResultModel],
+    completed_units: list[str],
+    program: str = "Master",
+    major: str = "",
+    year_of_study: int = 1,
+) -> dict:
+    """
+    Return a dict with gap_analysis, next_semester_plan, and study_resources.
+    Falls back gracefully if the API key is absent or the call fails.
+    """
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        logger.warning("OPENAI_API_KEY not set — skipping LLM analysis.")
+        return _fallback_analysis(recommendations, completed_units)
+
+    units_summary = "\n".join(
+        f"  • [{r.unit_code}] {r.title} — {r.score * 100:.0f}% match"
+        for r in recommendations
+    )
+    completed_str = ", ".join(completed_units) if completed_units else "none"
+    major_str = f", {major} major" if major else ""
+    prompt = _LLM_PROMPT.format(
+        program=program,
+        year_of_study=year_of_study,
+        major_str=major_str,
+        job_description=job_description[:800],
+        units_summary=units_summary,
+        completed_str=completed_str,
+    )
 
     try:
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            max_tokens=256,
+            max_tokens=800,
+            response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.choices[0].message.content.strip()
+        raw = response.choices[0].message.content.strip()
+        data = _json.loads(raw)
+        # Normalise study_resources into StudyResource objects
+        resources = [
+            _build_resource(r)
+            for r in data.get("study_resources", [])
+        ]
+        return {
+            "gap_analysis": data.get("gap_analysis", ""),
+            "next_semester_plan": data.get("next_semester_plan", ""),
+            "study_resources": resources,
+        }
     except Exception as exc:
         logger.error("OpenAI API call failed: %s", exc)
-        return _fallback_gap(recommendations, completed_units)
+        return _fallback_analysis(recommendations, completed_units)
 
 
-def _fallback_gap(
+def _fallback_analysis(
     recommendations: list[RecommendationResultModel],
-    completed_units: list[str],
-) -> str:
+    completed_units: list[str],  # noqa: ARG001
+) -> dict:
     if not recommendations:
-        return "No matching units found for this job description."
-    top = recommendations[0]
-    remaining = [r for r in recommendations if not r.is_completed]
-    count_str = f"{len(remaining)} unit(s)" if remaining else "all recommended units"
-    return (
-        f"The closest match is {top.unit_code} ({top.title}, "
-        f"{top.score * 100:.0f}% similarity). "
-        f"Consider enrolling in {count_str} to build the required skill set. "
-        f"Review each unit's learning outcomes against the job requirements for "
-        f"a detailed fit assessment."
-    )
+        gap = "No matching units found for this job description."
+        plan = "Ingest unit data into ChromaDB and try again."
+    else:
+        top = recommendations[0]
+        remaining = [r for r in recommendations if not r.is_completed]
+        count_str = f"{len(remaining)} unit(s)" if remaining else "the recommended units"
+        gap = (
+            f"The closest match is {top.unit_code} ({top.title}, "
+            f"{top.score * 100:.0f}% similarity). "
+            f"Consider enrolling in {count_str} to build the required skill set."
+        )
+        plan = (
+            f"Start with {top.unit_code} next semester to address the highest-priority skill gap. "
+            f"Review each unit's learning outcomes against the job requirements for a detailed fit assessment."
+        )
+    return {
+        "gap_analysis": gap,
+        "next_semester_plan": plan,
+        "study_resources": [],
+    }
