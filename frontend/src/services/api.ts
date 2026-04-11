@@ -4,8 +4,10 @@
  * Centralised Axios service layer.  All components and hooks make requests
  * through these functions — never directly via axios.
  *
- * The Vite dev proxy (vite.config.ts) forwards /api/* to localhost:8000,
- * so no base-URL configuration is needed in development.
+ * Development: VITE_API_URL is unset → baseURL is '/api' → Vite proxy
+ *              forwards to localhost:8000.
+ * Production:  VITE_API_URL is set to the Railway backend URL
+ *              (e.g. https://course2career-api.up.railway.app).
  */
 
 import axios from 'axios'
@@ -16,8 +18,12 @@ import type {
   Unit,
 } from '../types'
 
+const _apiBase = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api'
+
 const http = axios.create({
-  baseURL: '/api',
+  baseURL: _apiBase,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000,
 })

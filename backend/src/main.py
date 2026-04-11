@@ -11,6 +11,7 @@ Run from the project root (BridgeTech/) so that sibling packages
 
 from __future__ import annotations
 
+import os
 import sys
 import logging
 from contextlib import asynccontextmanager
@@ -43,7 +44,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _UTILS_DIR = Path(__file__).parents[2] / "utils"
-_CHROMA_DIR = str(Path(__file__).parents[2] / "data" / "chroma")
+_DATA_DIR  = Path(__file__).parents[2] / "data"
+# Allow Railway volume override via env var (set CHROMA_PATH=/data/chroma in Railway)
+_CHROMA_DIR = os.getenv("CHROMA_PATH", str(_DATA_DIR / "chroma"))
+_MIT_PDF = _DATA_DIR / "qut_IN20_45010_dom_cms_unit.pdf"
 
 
 # ---------------------------------------------------------------------------
@@ -56,9 +60,18 @@ async def lifespan(app: FastAPI):
     app.state.ingestor = ingestor
 
     if ingestor.count == 0:
-        logger.info("ChromaDB is empty — auto-ingesting from %s …", _UTILS_DIR)
+        # Try JSON files first (fast, local dev)
         n = ingestor.ingest_json_files(_UTILS_DIR)
-        logger.info("Auto-ingested %d unit(s).", n)
+        if n:
+            logger.info("Auto-ingested %d unit(s) from JSON.", n)
+
+        # Auto-ingest MIT PDF on cold start (covers Railway fresh deploys)
+        if _MIT_PDF.exists():
+            logger.info("Auto-ingesting MIT course PDF on cold start …")
+            n_pdf = ingestor.ingest_pdf(_MIT_PDF)
+            logger.info("Ingested %d unit(s) from MIT PDF.", n_pdf)
+        else:
+            logger.warning("MIT PDF not found at %s — skipping PDF ingest.", _MIT_PDF)
     else:
         logger.info("ChromaDB already has %d unit(s) — skipping auto-ingest.", ingestor.count)
 
@@ -78,12 +91,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# FRONTEND_URL is set in Railway to the Vercel deployment URL
+# e.g. https://course2career.vercel.app
+_frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
+_cors_origins = [
+    "http://localhost:5173",   # Vite dev server
+    "http://localhost:4173",   # Vite preview
+]
+if _frontend_url:
+    _cors_origins.append(_frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:4173",   # Vite preview
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
