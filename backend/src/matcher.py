@@ -242,7 +242,7 @@ def _openai_analysis(
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            max_tokens=800,
+            max_tokens=1500,
             response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt}],
         )

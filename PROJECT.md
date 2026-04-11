@@ -151,6 +151,68 @@ course structures for all 7 MIT majors and 2 Bachelor specialisations (with more
 
 ---
 
+## Deployment
+
+### Live URLs
+| Service | Platform | URL |
+|---|---|---|
+| **Frontend** | Vercel | Your Vercel project URL (set after deploy) |
+| **Backend API** | Railway | Your Railway service URL (e.g. `https://your-api.up.railway.app`) |
+
+### Frontend — Vercel
+- Deployed as a static React SPA
+- `vercel.json` rewrites all routes to `index.html` (enables client-side routing)
+- One environment variable required: `VITE_API_URL` → set to the Railway backend URL
+- In development, `VITE_API_URL` is unset and Vite proxies `/api` to `localhost:8000`
+
+### Backend — Railway
+- Python auto-detected via root-level `requirements.txt`; Nixpacks builds the image automatically
+- Start command: `uvicorn backend.src.main:app --host 0.0.0.0 --port $PORT`
+- Health check: `GET /api/health` (returns `{ status: "ok", units_in_db: N }`)
+
+**Required environment variables (set in Railway project settings):**
+
+| Variable | Value |
+|---|---|
+| `OPENAI_API_KEY` | Your OpenAI API key |
+| `APP_ID` | Adzuna application ID |
+| `APP_KEY` | Adzuna API key |
+| `FRONTEND_URL` | Your Vercel deployment URL (added to CORS allowed origins) |
+| `CHROMA_PATH` | `/data/chroma` (path to the Railway volume mount) |
+
+### ChromaDB Persistence — Railway Volume
+- ChromaDB writes its vector index to disk; without a volume it resets on every redeploy
+- In Railway: add a **Volume** to the service, mount path `/data/chroma`
+- Set `CHROMA_PATH=/data/chroma` so the app writes to the volume
+- On first cold start the app auto-ingests units from `utils/*.json` and the MIT PDF; subsequent deploys skip ingestion (DB already populated)
+
+### PDF Files
+- All QUT course structure PDFs live in `data/` and are committed to git
+- Railway clones the full repo, so PDFs are available at deploy time — no manual upload needed
+- `data/chroma/` (the generated vector DB) is gitignored; it lives on the Railway volume
+
+### Architecture with Deployment
+
+```
+  Browser
+     │  HTTPS
+     ▼
+┌──────────────┐          ┌────────────────────────────┐
+│    Vercel    │  REST     │          Railway           │
+│  React SPA   │ ────────▶│  FastAPI  +  ChromaDB      │
+│  (static)    │          │  (volume: /data/chroma)    │
+└──────────────┘          └──────────┬─────────────────┘
+                                     │
+                          ┌──────────┴──────────┐
+                          ▼                     ▼
+                    ┌──────────┐         ┌────────────┐
+                    │ Adzuna   │         │ OpenAI API │
+                    │ Jobs API │         │ GPT-4o-mini│
+                    └──────────┘         └────────────┘
+```
+
+---
+
 ## Data Sources
 
 | Source | What It Provides |
