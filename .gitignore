@@ -1,0 +1,29 @@
+# Auth tokens — never commit
+auth/storage_state.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Env
+.env
+.env.*
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# ChromaDB data (auto-generated, can be re-ingested)
+data/chroma/
+
+# Frontend build artefacts
+frontend/node_modules/
+frontend/dist/
+
+# Playwright
+playwright-report/
+test-results/

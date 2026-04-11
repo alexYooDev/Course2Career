@@ -1,0 +1,24 @@
+{
+  "unit_code": "IFN662",
+  "requested_year": "2026",
+  "requested_study_period_code": "SEM-1",
+  "url": "https://qutvirtual4.qut.edu.au/web/qut/unit?unitCode=IFN662&year=2026&studyPeriodCode=SEM-1",
+  "is_valid": true,
+  "validation_message": "Valid offering found: Unit Outline: Semester 1 2026, Gardens Point, Internal 2026",
+  "returned_outline": "Unit Outline: Semester 1 2026, Gardens Point, Internal 2026",
+  "full_title": "IFN662 Software Engineering for Enterprise Systems",
+  "unit_name": "Software Engineering for Enterprise Systems",
+  "credit_points": "12",
+  "pre_requisite": "IFN581 or ((IFN555 or IFQ555) and (IFN556 or IFQ556))",
+  "equivalent": "",
+  "learning outcomes": [
+    "Apply advanced software design patterns to enterprise-scale systems",
+    "Evaluate and implement DevOps practices including CI/CD pipelines",
+    "Design scalable and robust solutions using microservices and cloud platforms",
+    "Apply agile and scaled agile frameworks in enterprise software projects",
+    "Implement advanced testing strategies for large-scale enterprise applications"
+  ],
+  "content": "This unit provides knowledge on advanced concepts and methodologies in software engineering, tailored for the design, development, configuration, and maintenance of Enterprise Systems. Topics include complex software design patterns, scalable architecture, DevOps practices, scaled agile frameworks, and AI-driven development.",
+  "assumed_knowledge": "",
+  "anti_requisite": ""
+}
