@@ -64,7 +64,6 @@ export interface RecommendationResult {
   score: number;
   matching_reason: string;
   gap_skills: string[];
-  is_completed: boolean;
 }
 
 export interface StudyResource {

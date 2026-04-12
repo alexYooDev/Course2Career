@@ -44,16 +44,16 @@ export default function UnitCard({ unit, score, isCompleted = false, onToggle, g
         ${isCompleted ? 'border-emerald-200 bg-emerald-50/20' : 'border-gray-200 bg-white'}`}
     >
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className='p-5 flex-1'>
+      <div className='flex-1 p-5'>
         <div className='flex items-start justify-between gap-3'>
           {/* Unit code + title */}
-          <div className='flex items-start gap-3 min-w-0'>
+          <div className='flex items-start min-w-0 gap-3'>
             <span className='shrink-0 inline-block bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-md'>
               {unit.unit_code}
             </span>
-            <h3 className='font-semibold text-gray-900 leading-snug text-sm'>
+            <h3 className='text-sm font-semibold leading-snug text-gray-900'>
               {unit.title || (
-                <span className='text-gray-400 italic'>Untitled unit</span>
+                <span className='italic text-gray-400'>Untitled unit</span>
               )}
             </h3>
           </div>
@@ -132,15 +132,19 @@ export default function UnitCard({ unit, score, isCompleted = false, onToggle, g
         {/* Gap skill tags */}
         {gapSkills && gapSkills.length > 0 && (
           <div className='mt-2.5 flex flex-wrap gap-1.5'>
-            <span className='text-xs text-gray-400 mr-0.5'>Skill gaps:</span>
-            {gapSkills.map((skill, i) => (
-              <span
-                key={i}
-                className='text-xs text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full'
-              >
-                {skill}
-              </span>
-            ))}
+            <span className='text-xs font-semibold text-orange-500 mr-0.5'>
+              Skill gaps this fills:
+            </span>
+            <div className='mt-2.5 flex flex-wrap gap-1.5 mb-2'>
+              {gapSkills.map((skill, i) => (
+                <span
+                  key={i}
+                  className='text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full'
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -148,8 +152,7 @@ export default function UnitCard({ unit, score, isCompleted = false, onToggle, g
           href={`https://www.qut.edu.au/study/unit?unitCode=${unit.unit_code}`}
           target='_blank'
           rel='noopener noreferrer'
-          className='inline-flex items-center gap-1 text-xs font-medium text-blue-600
-                         hover:text-blue-700 hover:underline transition-colors'
+          className='inline-flex items-center gap-1 text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 hover:underline'
         >
           For more details
           <svg
@@ -195,9 +198,9 @@ export default function UnitCard({ unit, score, isCompleted = false, onToggle, g
               {unit.learning_outcomes.map((lo, i) => (
                 <li
                   key={i}
-                  className='flex gap-2 text-xs text-gray-600 leading-relaxed'
+                  className='flex gap-2 text-xs leading-relaxed text-gray-600'
                 >
-                  <span className='shrink-0 text-blue-400 font-semibold'>
+                  <span className='font-semibold text-blue-400 shrink-0'>
                     {i + 1}.
                   </span>
                   <span>{lo}</span>

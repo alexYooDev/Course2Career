@@ -92,11 +92,14 @@ def generate_recommendations(
     -------
     RecommendationResponse
     """
-    # --- 1. Vector search ---
+    # --- 1. Vector search — fetch extra candidates so we still have top_k
+    #        after excluding units the student already completed ---
+    completed_set = set(request.completed_units)
     candidates = ingestor.query_similar(
         request.job_description,
-        n_results=request.top_k * 2,
+        n_results=request.top_k * 2 + len(completed_set),
     )
+    candidates = [c for c in candidates if c["unit_code"] not in completed_set]
     if not candidates:
         return RecommendationResponse(
             job_title="",
@@ -125,7 +128,7 @@ def generate_recommendations(
                 else "Semantic match to job requirements."
             )
 
-        # Gap skills = JD keywords not covered by any top unit
+        # Gap skills = JD keywords not covered by this unit
         gap_skills = sorted(jd_kw - unit_kw)[:5]
         results.append(
             RecommendationResultModel(
@@ -134,7 +137,6 @@ def generate_recommendations(
                 score=unit["score"],
                 matching_reason=reason,
                 gap_skills=gap_skills,
-                is_completed=unit["unit_code"] in request.completed_units,
             )
         )
 

@@ -69,7 +69,6 @@ class RecommendationResultModel(BaseModel):
     score: float                    # cosine similarity 0–1
     matching_reason: str
     gap_skills: list[str] = []
-    is_completed: bool = False
 
 
 class StudyResource(BaseModel):

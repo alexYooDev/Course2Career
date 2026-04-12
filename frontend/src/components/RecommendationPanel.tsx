@@ -17,8 +17,6 @@ function Bold({ text }: { text: string }) {
 
 interface Props {
   recommendations: RecommendationResponse
-  completedUnits: Set<string>
-  onToggle: (code: string) => void
 }
 
 function toUnit(rec: RecommendationResponse['recommendations'][number]): Unit {
@@ -46,7 +44,7 @@ const RESOURCE_CONFIG: Record<
   event:     { label: 'Event',     bg: 'bg-sky-50',     text: 'text-sky-700',    icon: '📅' },
 }
 
-export default function RecommendationPanel({ recommendations, completedUnits, onToggle }: Props) {
+export default function RecommendationPanel({ recommendations }: Props) {
   const {
     job_title,
     gap_analysis,
@@ -110,8 +108,6 @@ export default function RecommendationPanel({ recommendations, completedUnits, o
               key={rec.unit_code}
               unit={toUnit(rec)}
               score={rec.score}
-              isCompleted={completedUnits.has(rec.unit_code)}
-              onToggle={onToggle}
               gapSkills={rec.gap_skills}
             />
           ))}

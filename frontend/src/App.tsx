@@ -216,8 +216,6 @@ export default function App() {
             {!recLoading && !recError && recommendations && (
               <RecommendationPanel
                 recommendations={recommendations}
-                completedUnits={completedUnits}
-                onToggle={toggleCompleted}
               />
             )}
           </div>
