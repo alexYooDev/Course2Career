@@ -107,7 +107,7 @@ def generate_recommendations(
             gap_analysis="No units are available in the catalogue yet.",
             total_units_analyzed=ingestor.count,
         )
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     client = OpenAI(api_key=api_key) if api_key else None
     # --- 2. Build result objects with keyword-based matching reasons ---
     jd_kw = set(_keywords(request.job_description, client=client))
@@ -238,7 +238,7 @@ def _openai_analysis(
     Return a dict with gap_analysis, next_semester_plan, and study_resources.
     Falls back gracefully if the API key is absent or the call fails.
     """
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
         logger.warning("OPENAI_API_KEY not set — skipping LLM analysis.")
         return _fallback_analysis(recommendations, completed_units)
@@ -292,8 +292,7 @@ def _fallback_analysis(
         plan = "Ingest unit data into ChromaDB and try again."
     else:
         top = recommendations[0]
-        remaining = [r for r in recommendations if not r.is_completed]
-        count_str = f"{len(remaining)} unit(s)" if remaining else "the recommended units"
+        count_str = f"{len(recommendations)} unit(s)" if recommendations else "the recommended units"
         gap = (
             f"The closest match is {top.unit_code} ({top.title}, "
             f"{top.score * 100:.0f}% similarity). "
