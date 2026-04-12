@@ -20,9 +20,10 @@ interface Props {
   score?: number
   isCompleted?: boolean
   onToggle?: (unitCode: string) => void
+  gapSkills?: string[]
 }
 
-export default function UnitCard({ unit, score, isCompleted = false, onToggle }: Props) {
+export default function UnitCard({ unit, score, isCompleted = false, onToggle, gapSkills }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const scorePercent = score !== undefined ? Math.round(score * 100) : null
@@ -126,6 +127,21 @@ export default function UnitCard({ unit, score, isCompleted = false, onToggle }:
           <p className='mt-2.5 text-xs text-gray-500 line-clamp-2 leading-relaxed'>
             {unit.content}
           </p>
+        )}
+
+        {/* Gap skill tags */}
+        {gapSkills && gapSkills.length > 0 && (
+          <div className='mt-2.5 flex flex-wrap gap-1.5'>
+            <span className='text-xs text-gray-400 mr-0.5'>Skill gaps:</span>
+            {gapSkills.map((skill, i) => (
+              <span
+                key={i}
+                className='text-xs text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full'
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
         )}
 
         <a

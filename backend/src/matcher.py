@@ -44,7 +44,25 @@ _STOP = frozenset({
 })
 
 
-def _keywords(text: str, top_n: int = 12) -> list[str]:
+def _keywords(text: str, client: OpenAI = None, top_n: int = 8) -> list[str]:
+    if not text.strip():
+        return []
+
+    if client:
+        try:
+            prompt = f"Extract top {top_n} skills as a comma-separated list: {text[:500]}"
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
+            raw_output = response.choices[0].message.content.strip()
+            
+            return [s.strip().title() for s in raw_output.split(",") if s.strip()]
+        except Exception:
+            pass # fallback to manual below
+
+    # Manual fallback logic...
     import re
     import string
     tokens = re.sub(r"[" + string.punctuation + r"]", " ", text.lower()).split()
@@ -66,9 +84,9 @@ def generate_recommendations(
     Parameters
     ----------
     request:
-        Validated ``RecommendationRequest`` from the API layer.
+        Validated `⁠ RecommendationRequest ⁠` from the API layer.
     ingestor:
-        Shared ``UnitIngestor`` with ChromaDB access.
+        Shared `⁠ UnitIngestor ⁠` with ChromaDB access.
 
     Returns
     -------
@@ -86,14 +104,15 @@ def generate_recommendations(
             gap_analysis="No units are available in the catalogue yet.",
             total_units_analyzed=ingestor.count,
         )
-
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    client = OpenAI(api_key=api_key) if api_key else None
     # --- 2. Build result objects with keyword-based matching reasons ---
-    jd_kw = set(_keywords(request.job_description))
+    jd_kw = set(_keywords(request.job_description, client=client))
     results: list[RecommendationResultModel] = []
 
     for unit in candidates[: request.top_k]:
         unit_text = " ".join(unit["learning_outcomes"]) + " " + unit["content"]
-        unit_kw = set(_keywords(unit_text))
+        unit_kw = set(_keywords(unit_text, client=client))
         shared = sorted(jd_kw & unit_kw)[:5]
 
         if shared:
@@ -108,7 +127,6 @@ def generate_recommendations(
 
         # Gap skills = JD keywords not covered by any top unit
         gap_skills = sorted(jd_kw - unit_kw)[:5]
-
         results.append(
             RecommendationResultModel(
                 unit_code=unit["unit_code"],

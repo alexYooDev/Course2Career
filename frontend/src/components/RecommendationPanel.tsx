@@ -26,7 +26,7 @@ function toUnit(rec: RecommendationResponse['recommendations'][number]): Unit {
     unit_code: rec.unit_code,
     title: rec.title,
     content: rec.matching_reason,
-    learning_outcomes: rec.gap_skills.map(s => `Gap skill: ${s}`),
+    learning_outcomes: [],
     credit_points: '',
     pre_requisite: '',
     study_period: '',
@@ -112,6 +112,7 @@ export default function RecommendationPanel({ recommendations, completedUnits, o
               score={rec.score}
               isCompleted={completedUnits.has(rec.unit_code)}
               onToggle={onToggle}
+              gapSkills={rec.gap_skills}
             />
           ))}
         </div>
