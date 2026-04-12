@@ -196,70 +196,86 @@ export default function UnitProgress({ completedUnits, onToggle, degree, major }
 
   const totalKnown = allCodes.size
   const completedCount = [...allCodes].filter(c => completedUnits.has(c)).length
-  const pct = totalKnown > 0 ? Math.round((completedCount / totalKnown) * 100) : 0
+  const pct = totalKnown > 0 ? Math.round((completedCount / (degree === 'Master' ? 16 : 24)) * 100) : 0
 
   const q = query.trim().toLowerCase()
 
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-6 text-sm text-gray-400">
-        <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-blue-400 rounded-full border-t-transparent animate-spin" />
         Loading units…
       </div>
     )
   }
   if (error) {
-    return <p className="text-sm text-red-600 py-4">Could not load units — is the backend running?</p>
+    return <p className="py-4 text-sm text-red-600">Could not load units — is the backend running?</p>
   }
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {/* ── Progress summary ──────────────────────────────── */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs font-medium text-gray-600">
-          <span>{completedCount} / {totalKnown} units completed</span>
-          <span className="text-gray-400">{pct}%</span>
+      <div className='space-y-1.5'>
+        <div className='flex items-center justify-between text-xs font-medium text-gray-600'>
+          <span>
+            {completedCount} / {degree === 'Master' ? 16 : 24} units completed
+          </span>
         </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className='h-2 overflow-hidden bg-gray-100 rounded-full'>
           <div
-            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+            className='h-full transition-all duration-500 rounded-full bg-emerald-500'
             style={{ width: `${pct}%` }}
           />
         </div>
       </div>
 
       {/* ── Search ────────────────────────────────────────── */}
-      <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
-             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round"
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+      <div className='relative'>
+        <svg
+          className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none'
+          fill='none'
+          viewBox='0 0 24 24'
+          stroke='currentColor'
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            d='M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'
+          />
         </svg>
         <input
-          type="text"
-          placeholder="Search by unit code or title…"
+          type='text'
+          placeholder='Search by unit code or title…'
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg
-                     focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
-                     placeholder:text-gray-400"
+          onChange={(e) => setQuery(e.target.value)}
+          className='w-full py-2 pl-8 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 placeholder:text-gray-400'
         />
         {query && (
           <button
             onClick={() => setQuery('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className='absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
-                 stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className='w-3.5 h-3.5'
+              fill='none'
+              viewBox='0 0 24 24'
+              stroke='currentColor'
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                d='M6 18L18 6M6 6l12 12'
+              />
             </svg>
           </button>
         )}
       </div>
 
       {/* ── Category tree ─────────────────────────────────── */}
-      <div className="space-y-2">
-        {structure.map(cat => (
+      <div className='space-y-2'>
+        {structure.map((cat) => (
           <CategoryBlock
             key={cat.label}
             category={cat}
@@ -271,7 +287,7 @@ export default function UnitProgress({ completedUnits, onToggle, degree, major }
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -324,16 +340,15 @@ function CategoryBlock({ category, unitMap, completedUnits, onToggle, filterQuer
   const isOpen = open || filterQuery !== ''
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="overflow-hidden border border-gray-200 rounded-xl">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3
-                   bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        className="flex items-center justify-between w-full px-4 py-3 text-left transition-colors bg-gray-50 hover:bg-gray-100"
       >
         <div className="flex items-center gap-2">
           <span className="text-base">{category.icon}</span>
           <span className="text-sm font-semibold text-gray-800">{category.label}</span>
-          <span className="text-xs text-gray-400 font-normal">· {total} units</span>
+          <span className="text-xs font-normal text-gray-400">· {total} units</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full
@@ -352,7 +367,7 @@ function CategoryBlock({ category, unitMap, completedUnits, onToggle, filterQuer
       </button>
 
       {isOpen && (
-        <div className="divide-y divide-gray-100 bg-white">
+        <div className="bg-white divide-y divide-gray-100">
           {category.subGroups.map(sg => (
             <SubGroupBlock
               key={sg.label}
@@ -384,7 +399,7 @@ function SubGroupBlock({ subGroup, unitMap, completedUnits, onToggle, filterQuer
 
   if (subGroup.codes.length === 0) {
     return (
-      <div className="px-5 py-3 text-xs text-gray-400 italic">
+      <div className="px-5 py-3 text-xs italic text-gray-400">
         {subGroup.label}
       </div>
     )
