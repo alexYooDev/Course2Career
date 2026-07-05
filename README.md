@@ -66,4 +66,4 @@ docker-compose up --build
 
 ## Author
 
-Built by [Hwanik (Alex) Yoo](https://github.com/alexYooDev), mostly solo, with AI-assisted development used to accelerate prototyping.
+Built by [Hwanik (Alex) Yoo](https://github.com/alexYooDev) with AI-assisted development used to accelerate prototyping.
